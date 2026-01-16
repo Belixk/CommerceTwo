@@ -7,6 +7,7 @@ import (
 
 	"github.com/Belixk/CommerceTwo/config"
 	"github.com/Belixk/CommerceTwo/internal/handlers"
+	"github.com/Belixk/CommerceTwo/internal/pkg/hash"
 	"github.com/Belixk/CommerceTwo/internal/repositories"
 	"github.com/Belixk/CommerceTwo/internal/services"
 
@@ -19,7 +20,7 @@ func main() {
 	cfg := config.Load()
 	var db *sqlx.DB
 	var err error
-
+	// 5 попыток подключения к бд
 	for i := 0; i < 5; i++ {
 		log.Printf("Attemptin to connect to PostgreSQL #%d\n", i+1)
 		db, err = sqlx.Connect("postgres", cfg.GetDBDSN())
@@ -45,8 +46,15 @@ func main() {
 
 	userRepo := repositories.NewUserRepository(db)
 	userCache := repositories.NewUserCache(rdb)
-	userService := services.NewUserService(userRepo, userCache)
+	hasher := &hash.BcryptHasher{}
+	userService := services.NewUserService(userRepo, userCache, hasher)
 	userHandler := handlers.NewUserHandler(userService)
+
+	orderRepo := repositories.NewOrderRepository(db)
+	orderCache := repositories.NewOrderCache(rdb)
+
+	orderService := services.NewOrderService(orderRepo, orderCache)
+	orderHandler := handlers.NewOrderHandler(orderService)
 
 	r := gin.Default()
 
@@ -56,6 +64,16 @@ func main() {
 		{
 			users.POST("/", userHandler.CreateUser)
 			users.GET("/:id", userHandler.GetUser)
+			users.PUT("/:id", userHandler.UpdateUser)
+			users.DELETE("/:id", userHandler.DeleteUser)
+		}
+		orders := v1.Group("/orders")
+		{
+			orders.POST("/", orderHandler.CreateOrder)
+			orders.GET("/:id", orderHandler.GetOrderByID)
+			orders.GET("/user/:user_id", orderHandler.GetOrdersByUserID)
+			orders.PUT("/:id", orderHandler.UpdateOrder)
+			orders.DELETE("/:id", orderHandler.DeleteOrder)
 		}
 	}
 

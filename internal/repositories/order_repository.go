@@ -83,7 +83,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id int64) (*entity.O
 
 	queryOrder := `
 		SELECT id, user_id, items, amount, created_at, updated_at
-		FROM order
+		FROM orders
 		WHERE id = $1
 	`
 	err := r.db.GetContext(ctx, &order, queryOrder, id)
@@ -114,7 +114,7 @@ func (r *orderRepository) GetOrderByUserID(ctx context.Context, user_id int64) (
 
 	queryOrder := `
 		SELECT id, user_id, total, created_at, updated_at
-		FROM order
+		FROM orders
 		WHERE user_id = $1
 		ORDER BY created_at DESC LIMIT 1
 	`
