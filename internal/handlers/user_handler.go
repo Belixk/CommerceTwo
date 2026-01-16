@@ -18,7 +18,10 @@ func NewUserHandler(service *services.UserService) *UserHandler {
 }
 
 func (h *UserHandler) CreateUser(c *gin.Context) {
-	var input entity.User
+	var input struct {
+		entity.User
+		Password string `json:"password"`
+	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -27,7 +30,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.service.CreateUser(c.Request.Context(), &input, "")
+	user, err := h.service.CreateUser(c.Request.Context(), &input.User, input.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":    err.Error(),

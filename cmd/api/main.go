@@ -2,7 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Belixk/CommerceTwo/config"
@@ -12,6 +17,9 @@ import (
 	"github.com/Belixk/CommerceTwo/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
 )
@@ -36,6 +44,8 @@ func main() {
 	}
 	log.Println("Successfully connected to PostgreSQL")
 	defer db.Close()
+
+	runMigrations(db)
 
 	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -77,6 +87,57 @@ func main() {
 		}
 	}
 
+	srv := &http.Server{
+		Addr:    ":" + cfg.AppPort,
+		Handler: r,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
 	log.Printf("Server starting on :%s", cfg.AppPort)
-	r.Run(":" + cfg.AppPort)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	<-quit
+	log.Println("Shutting down server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatal("Server forced to Shutdown:", err)
+	}
+	log.Println("Closing database connections...")
+	db.Close()
+	rdb.Close()
+
+	log.Println("Server exiting")
+}
+
+func runMigrations(db *sqlx.DB) {
+	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+	if err != nil {
+		log.Fatalf("could not create migrate driver: %v", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+	if err != nil {
+		log.Fatalf("could not create migrate instance: %v", err)
+	}
+
+	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			log.Println("Database is up to date (no migrations to apply)")
+		} else {
+			log.Fatalf("could not run up migrations: %v", err)
+		}
+	} else {
+		log.Println("Migrations applied successfully!")
+	}
 }
