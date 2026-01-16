@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS orders (
     user_id BIGINT NOT NULL,
     total BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     order_id BIGINT NOT NULL,
     name TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    price BIGINT NOT NULL
+    price BIGINT NOT NULL,
 
     CONSTRAINT fk_order FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
