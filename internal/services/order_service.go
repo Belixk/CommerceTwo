@@ -10,9 +10,7 @@ import (
 	"github.com/Belixk/CommerceTwo/internal/repositories"
 )
 
-var (
-	ErrOrderNil = errors.New("order not must be a nil")
-)
+var ErrOrderNil = errors.New("order not must be a nil")
 
 type Cache interface {
 	Get(ctx context.Context, key string) (*entity.Order, error)
@@ -20,13 +18,13 @@ type Cache interface {
 }
 
 type OrderService struct {
-	repo repositories.OrderRepository
+	repo  repositories.OrderRepository
 	cache Cache
 }
 
 func NewOrderService(repo repositories.OrderRepository, cache Cache) *OrderService {
 	return &OrderService{
-		repo: repo,
+		repo:  repo,
 		cache: cache,
 	}
 }
@@ -36,13 +34,23 @@ func (s *OrderService) CreateOrder(ctx context.Context, order *entity.Order) (*e
 		return nil, ErrOrderNil
 	}
 
+	if len(order.Items) == 0 {
+		return nil, errors.New("order must have at least one item")
+	}
+
+	var total int64
+	for _, item := range order.Items {
+		total += item.Price * int64(item.Quantity)
+	}
+	order.Total = total
+
 	return s.repo.CreateOrder(ctx, order)
 }
 
 func (s *OrderService) GetOrderByID(ctx context.Context, id int64) (*entity.Order, error) {
 	key := fmt.Sprintf("order:%d", id)
 
-	if order, err := s.cache.Get(ctx, key); err == nil && order != nil{
+	if order, err := s.cache.Get(ctx, key); err == nil && order != nil {
 		return order, nil
 	}
 
@@ -56,7 +64,7 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id int64) (*entity.Orde
 	return order, nil
 }
 
-func (s *UserService) GetOrderbyUserID(ctx context.Context, user_id int64) (*entity.Order, error) {
+func (s *OrderService) GetOrderbyUserID(ctx context.Context, user_id int64) (*entity.Order, error) {
 	key := fmt.Sprintf("order:%d", user_id)
 
 	if order, err := s.cache.Get(ctx, key); err == nil && order != nil {
@@ -69,6 +77,6 @@ func (s *UserService) GetOrderbyUserID(ctx context.Context, user_id int64) (*ent
 	}
 
 	_ = s.cache.Set(ctx, key, order, 15*time.Minute)
-	
+
 	return order, nil
 }

@@ -14,15 +14,22 @@ type UserCache interface {
 	Set(ctx context.Context, key string, user *entity.User, ttl time.Duration) error
 }
 
-type UserService struct {
-	repo  repositories.UserRepository
-	cache UserCache
+type PasswordHasher interface {
+	Hash(password string) (string, error)
+	Compare(hash, password string) error
 }
 
-func NewUserService(repo repositories.UserRepository, cache UserCache) *UserService {
+type UserService struct {
+	repo   repositories.UserRepository
+	cache  UserCache
+	hasher PasswordHasher
+}
+
+func NewUserService(repo repositories.UserRepository, cache UserCache, hasher PasswordHasher) *UserService {
 	return &UserService{
-		repo:  repo,
-		cache: cache,
+		repo:   repo,
+		cache:  cache,
+		hasher: hasher,
 	}
 }
 
@@ -30,6 +37,16 @@ func (s *UserService) CreateUser(ctx context.Context, user *entity.User, passwor
 	if err := user.Validate(); err != nil {
 		return nil, err
 	}
+
+	if len(password) < 6 {
+		return nil, fmt.Errorf("password is too short")
+	}
+
+	hash, err := s.hasher.Hash(password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+	user.PasswordHash = hash
 	return s.repo.Create(ctx, user)
 }
 
